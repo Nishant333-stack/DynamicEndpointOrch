@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MockMesh DEO Dashboard</title>
+    <link rel="stylesheet" href="./dashboard.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Primary">
+        <div class="brand">
+          <span class="brand-mark">M</span>
+          <span>MockMesh DEO</span>
+        </div>
+        <nav class="nav-list" aria-label="Dashboard">
+          <a class="nav-item active" href="#endpoints" data-view="endpoints">
+            <span class="icon" aria-hidden="true">↳</span>
+            Endpoints
+          </a>
+          <a class="nav-item" href="#rules" data-view="rules">
+            <span class="icon" aria-hidden="true">≡</span>
+            Rules
+          </a>
+          <a class="nav-item" href="#logs" data-view="logs">
+            <span class="icon" aria-hidden="true">◷</span>
+            Logs
+          </a>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <h1 id="pageTitle">Endpoints</h1>
+            <p id="pageSubtitle">Configure dynamic mock routes for the demo project.</p>
+          </div>
+          <div class="topbar-actions">
+            <label class="project-control" for="projectId">
+              <span>Project</span>
+              <input id="projectId" value="demo" autocomplete="off" />
+            </label>
+            <div class="storage-chip" title="This demo uses the in-memory repository. Data resets when the server restarts.">
+              Storage: in-memory
+            </div>
+            <div class="status-chip" id="backendStatus" aria-live="polite">
+              <span class="status-dot"></span>
+              <span id="backendStatusText">Checking</span>
+            </div>
+          </div>
+        </header>
+
+        <section class="content-grid view-section active" id="endpoints">
+          <section class="inventory-panel" aria-labelledby="inventoryTitle">
+            <div class="panel-heading">
+              <div>
+                <h2 id="inventoryTitle">Endpoint inventory</h2>
+                <span id="endpointCount">Loading endpoints</span>
+              </div>
+              <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh endpoints">
+                ↻
+              </button>
+            </div>
+            <div class="inventory-toolbar" aria-label="Endpoint filters">
+              <label>
+                Search
+                <input id="searchInput" placeholder="Search endpoints" />
+              </label>
+              <label>
+                Method
+                <select id="methodFilter">
+                  <option value="">All methods</option>
+                  <option>GET</option>
+                  <option>POST</option>
+                  <option>PUT</option>
+                  <option>PATCH</option>
+                  <option>DELETE</option>
+                </select>
+              </label>
+              <label>
+                Status
+                <select id="statusFilter">
+                  <option value="">All status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Method</th>
+                    <th>Path</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Delay</th>
+                  </tr>
+                </thead>
+                <tbody id="endpointRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="work-panel" aria-label="Endpoint controls">
+            <section class="form-section" aria-labelledby="createTitle">
+              <div class="section-heading">
+                <h2 id="createTitle">Create endpoint</h2>
+                <span id="createState">Ready</span>
+              </div>
+              <form id="createForm">
+                <div class="field-row">
+                  <label>
+                    Method
+                    <select name="method">
+                      <option>GET</option>
+                      <option>POST</option>
+                      <option>PUT</option>
+                      <option>PATCH</option>
+                      <option>DELETE</option>
+                    </select>
+                  </label>
+                  <label>
+                    Status
+                    <input name="status_code" type="number" min="100" max="599" value="200" />
+                  </label>
+                </div>
+                <label>
+                  Path
+                  <input name="path" placeholder="/refunds/{refund_id}" required />
+                </label>
+                <label>
+                  Name
+                  <input name="name" placeholder="Refund lookup" required />
+                </label>
+                <label>
+                  Body template
+                  <textarea name="body_template" rows="5">{"ok":true,"id":"{{refund_id}}","trace_id":"{{uuid}}"}</textarea>
+                </label>
+                <div class="field-row">
+                  <label>
+                    Delay ms
+                    <input name="delay_ms" type="number" min="0" placeholder="0" />
+                  </label>
+                  <label>
+                    Delay mode
+                    <select name="delay_mode">
+                      <option>fixed</option>
+                      <option>random</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="toggle-row">
+                  <input name="is_active" type="checkbox" checked />
+                  <span>Active immediately</span>
+                </label>
+                <button class="primary-button" type="submit">Create endpoint</button>
+              </form>
+            </section>
+
+            <section class="form-section check-section" aria-labelledby="checkTitle">
+              <div class="section-heading">
+                <h2 id="checkTitle">Check endpoint</h2>
+                <span id="checkState">Idle</span>
+              </div>
+              <form id="checkForm">
+                <div class="field-row">
+                  <label>
+                    Method
+                    <select name="method">
+                      <option>GET</option>
+                      <option>POST</option>
+                      <option>PUT</option>
+                      <option>PATCH</option>
+                      <option>DELETE</option>
+                    </select>
+                  </label>
+                  <label>
+                    Path
+                    <input name="path" value="/payments/pay_123" required />
+                  </label>
+                </div>
+                <button class="secondary-button" type="submit">Check endpoint</button>
+              </form>
+              <div class="result-card" id="checkResult" aria-live="polite">
+                Enter a method and path to verify route resolution.
+              </div>
+              <div class="probe-panel">
+                <label>
+                  Probe body
+                  <textarea id="probeBody" rows="4">{"amount":25,"currency":"USD"}</textarea>
+                </label>
+                <button class="primary-button" id="probeButton" type="button">Run mock request</button>
+                <div class="result-card" id="probeResult" aria-live="polite">
+                  Run the mock request to execute rules, delay, rendering, and logging.
+                </div>
+              </div>
+            </section>
+          </aside>
+        </section>
+
+        <section class="content-grid view-section" id="rules">
+          <section class="inventory-panel" aria-labelledby="rulesTitle">
+            <div class="panel-heading">
+              <div>
+                <h2 id="rulesTitle">Rule inventory</h2>
+                <span id="ruleCount">Loading rules</span>
+              </div>
+              <button class="icon-button" id="refreshRulesButton" type="button" aria-label="Refresh rules">
+                ↻
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Endpoint</th>
+                    <th>Condition</th>
+                    <th>Operator</th>
+                    <th>Value</th>
+                    <th>Response</th>
+                  </tr>
+                </thead>
+                <tbody id="ruleRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="work-panel" aria-label="Rule controls">
+            <section class="form-section" aria-labelledby="createRuleTitle">
+              <div class="section-heading">
+                <h2 id="createRuleTitle">Create rule</h2>
+                <span id="ruleState">Ready</span>
+              </div>
+              <form id="ruleForm">
+                <label>
+                  Endpoint
+                  <select name="endpoint_id" id="ruleEndpointSelect" required></select>
+                </label>
+                <div class="field-row">
+                  <label>
+                    Source
+                    <select name="condition_type">
+                      <option value="query">query</option>
+                      <option value="headers">headers</option>
+                      <option value="body">body</option>
+                      <option value="path">path</option>
+                      <option value="request">request</option>
+                    </select>
+                  </label>
+                  <label>
+                    Operator
+                    <select name="operator">
+                      <option>equals</option>
+                      <option>not_equals</option>
+                      <option>contains</option>
+                      <option>exists</option>
+                      <option>gt</option>
+                      <option>lt</option>
+                      <option>regex</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label>
+                    Field
+                    <input name="field" value="status" required />
+                  </label>
+                  <label>
+                    Value
+                    <input name="value" value="failed" />
+                  </label>
+                </div>
+                <label>
+                  Response status
+                  <input name="status_code" type="number" min="100" max="599" value="409" />
+                </label>
+                <label>
+                  Response body template
+                  <textarea name="body_template" rows="5">{"matched":true,"payment_id":"{{payment_id}}","reason":"{{query.reason}}"}</textarea>
+                </label>
+                <button class="primary-button" type="submit">Create rule</button>
+              </form>
+            </section>
+          </aside>
+        </section>
+
+        <section class="content-grid view-section single-column" id="logs">
+          <section class="inventory-panel" aria-labelledby="logsTitle">
+            <div class="panel-heading">
+              <div>
+                <h2 id="logsTitle">Request logs</h2>
+                <span id="logCount">Loading logs</span>
+              </div>
+              <button class="icon-button" id="refreshLogsButton" type="button" aria-label="Refresh logs">
+                ↻
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Method</th>
+                    <th>Path</th>
+                    <th>Endpoint</th>
+                    <th>Code</th>
+                    <th>Response time</th>
+                  </tr>
+                </thead>
+                <tbody id="logRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+    <script src="./dashboard.js" defer></script>
+  </body>
+</html>
