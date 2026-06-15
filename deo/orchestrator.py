@@ -83,6 +83,7 @@ class DEOOrchestrator:
 
         response_time_ms = (perf_counter() - started_at) * 1000
         log_entry = RequestLogEntry(
+            project_id=project_id,
             endpoint_id=endpoint_id,
             method=request_ctx.method.upper(),
             path=request_ctx.raw_path,

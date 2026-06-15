@@ -58,7 +58,7 @@ def test_orchestrator_applies_delay_and_renders_body_values() -> None:
         assert body["currency"] == "USD"
         assert body["payout_id"]
         assert log_entry.endpoint_id == "endpoint_payout_create"
-        assert log_entry.response_time_ms >= 15
+        assert log_entry.response_time_ms >= 600
 
     asyncio.run(scenario())
 
@@ -83,7 +83,7 @@ def test_fastapi_catch_all_route_resolves_and_logs_request() -> None:
         assert response.headers["x-mockmesh-delay"] == "fixed"
         assert response.json()["amount"] == 99
         assert response.json()["currency"] == "EUR"
-        assert elapsed_ms >= 15
+        assert elapsed_ms >= 600
         assert len(repository.request_logs) == 1
         assert repository.request_logs[0].path == "/payouts"
         assert repository.request_logs[0].response_code == 202
@@ -108,6 +108,7 @@ def test_dashboard_page_and_assets_are_served() -> None:
 
         assert page_response.status_code == 200
         assert "MockMesh DEO Dashboard" in page_response.text
+        assert "AI Architect" in page_response.text
         assert 'href="./dashboard.css"' in page_response.text
         assert 'src="./dashboard.js"' in page_response.text
         assert css_response.status_code == 200
@@ -116,6 +117,120 @@ def test_dashboard_page_and_assets_are_served() -> None:
         assert js_response.status_code == 200
         assert "application/javascript" in js_response.headers["content-type"]
         assert relative_js_response.status_code == 200
+
+    asyncio.run(scenario())
+
+
+def test_dashboard_login_returns_project_options() -> None:
+    async def scenario() -> None:
+        repository = InMemoryEndpointRepository()
+        app = create_app(repository)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            projects_response = await client.get("/api/projects")
+            login_response = await client.post(
+                "/api/auth/login",
+                json={
+                    "email": "nishant@mockmesh.dev",
+                    "project_id": "checkout-lab",
+                },
+            )
+
+        assert projects_response.status_code == 200
+        project_ids = {
+            project["id"] for project in projects_response.json()["projects"]
+        }
+        assert {"demo", "checkout-lab", "refunds-qa"}.issubset(project_ids)
+        assert login_response.status_code == 200
+        login_payload = login_response.json()
+        assert login_payload["token"] == "dev-admin"
+        assert login_payload["default_project_id"] == "checkout-lab"
+        assert login_payload["display_name"] == "Nishant"
+
+    asyncio.run(scenario())
+
+
+def test_dashboard_project_selection_scopes_configuration_and_logs() -> None:
+    async def scenario() -> None:
+        repository = InMemoryEndpointRepository()
+        app = create_app(repository)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            checkout_endpoints = await client.get(
+                "/api/projects/checkout-lab/endpoints"
+            )
+            demo_endpoints = await client.get("/api/projects/demo/endpoints")
+            checkout_mock = await client.post(
+                "/mock/checkout-lab/cards",
+                json={"brand": "visa"},
+            )
+            checkout_logs = await client.get("/api/projects/checkout-lab/logs")
+            demo_logs = await client.get("/api/projects/demo/logs")
+
+        assert checkout_endpoints.status_code == 200
+        assert any(
+            endpoint["path"] == "/cards"
+            for endpoint in checkout_endpoints.json()["endpoints"]
+        )
+        assert not any(
+            endpoint["path"] == "/cards"
+            for endpoint in demo_endpoints.json()["endpoints"]
+        )
+        assert checkout_mock.status_code == 201
+        assert checkout_logs.json()["logs"][0]["path"] == "/cards"
+        assert demo_logs.json()["logs"] == []
+
+    asyncio.run(scenario())
+
+
+def test_dashboard_app_serves_integrated_architect_routes() -> None:
+    async def scenario() -> None:
+        repository = InMemoryEndpointRepository()
+        app = create_app(repository)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            generate_response = await client.post(
+                "/architect/generate",
+                json={
+                    "project_id": "demo",
+                    "raw_spec": "Create GET /ai-dashboard/{item_id} status 200",
+                },
+            )
+            assert generate_response.status_code == 202
+            task_id = generate_response.json()["task_id"]
+
+            task_payload = None
+            for _ in range(20):
+                task_response = await client.get(f"/architect/tasks/{task_id}")
+                assert task_response.status_code == 200
+                task_payload = task_response.json()
+                if task_payload["status"] == "succeeded":
+                    break
+                await asyncio.sleep(0.01)
+
+            assert task_payload is not None
+            assert task_payload["status"] == "succeeded"
+
+            commit_response = await client.post(
+                "/architect/commit",
+                json={"task_id": task_id, "project_id": "demo"},
+            )
+
+        assert commit_response.status_code == 200
+        assert await repository.endpoint_signature_exists(
+            "demo",
+            "GET",
+            "/ai-dashboard/{item_id}",
+        )
 
     asyncio.run(scenario())
 
@@ -163,7 +278,7 @@ def test_dashboard_api_creates_and_checks_dynamic_endpoint() -> None:
         assert check_payload["path_params"] == {"refund_id": "ref_123"}
         delayed_check_payload = delayed_check_response.json()
         assert delayed_check_payload["exists"] is True
-        assert delayed_check_payload["delay_ms"] == 20
+        assert delayed_check_payload["delay_ms"] == 650
         assert delayed_check_payload["delay_mode"] == "fixed"
         assert mock_response.status_code == 200
         assert mock_response.json()["refund_id"] == "ref_123"

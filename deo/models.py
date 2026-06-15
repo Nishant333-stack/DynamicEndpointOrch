@@ -120,6 +120,7 @@ class RequestLogEntry(BaseModel):
     """Repository record for one resolved request/response exchange."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    project_id: str | None = None
     endpoint_id: str | None = None
     method: str
     path: str
@@ -170,6 +171,31 @@ class EndpointCreateRequest(BaseModel):
             allowed = ", ".join(sorted(DELAY_MODES))
             raise ValueError(f"delay_mode must be one of: {allowed}")
         return delay_mode
+
+
+class ProjectOverview(BaseModel):
+    """Project option available to the logged-in dashboard user."""
+
+    id: str
+    name: str
+    description: str | None = None
+
+
+class LoginRequest(BaseModel):
+    """Demo login request used by the dashboard control plane."""
+
+    email: str = Field(min_length=3, max_length=160)
+    project_id: str | None = None
+
+
+class LoginResult(BaseModel):
+    """Demo login result with scoped project options."""
+
+    user_id: str
+    display_name: str
+    token: str
+    projects: list[ProjectOverview]
+    default_project_id: str
 
 
 class EndpointCreateResult(BaseModel):

@@ -7,106 +7,182 @@
     <link rel="stylesheet" href="./dashboard.css" />
   </head>
   <body>
-    <div class="shell">
-      <aside class="sidebar" aria-label="Primary">
-        <div class="brand">
-          <span class="brand-mark">M</span>
-          <span>MockMesh DEO</span>
+    <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
+      <form class="login-card" id="loginForm">
+        <div class="brand login-brand">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <div>
+            <strong>MockMesh</strong>
+            <span>Dynamic Endpoint Orchestrator</span>
+          </div>
         </div>
+        <div>
+          <h1 id="loginTitle">Log in to MockMesh</h1>
+          <p>Select a workspace project before creating endpoints.</p>
+        </div>
+        <label>
+          Email
+          <input id="loginEmail" name="email" type="email" value="nishant@mockmesh.dev" autocomplete="email" required />
+        </label>
+        <label>
+          Project
+          <select id="loginProjectSelect" name="project_id"></select>
+        </label>
+        <button class="primary-button" type="submit">Continue</button>
+        <div class="form-note" id="loginState" aria-live="polite">Ready</div>
+      </form>
+    </section>
+
+    <div class="app-shell is-hidden" id="appShell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <div>
+            <strong>MockMesh</strong>
+            <span>Dynamic Endpoint Orchestrator</span>
+          </div>
+        </div>
+
         <nav class="nav-list" aria-label="Dashboard">
           <a class="nav-item active" href="#endpoints" data-view="endpoints">
-            <span class="icon" aria-hidden="true">↳</span>
-            Endpoints
+            <span class="nav-icon" aria-hidden="true">□</span>
+            <span>Endpoints</span>
           </a>
           <a class="nav-item" href="#rules" data-view="rules">
-            <span class="icon" aria-hidden="true">≡</span>
-            Rules
+            <span class="nav-icon" aria-hidden="true">≡</span>
+            <span>Rules</span>
           </a>
           <a class="nav-item" href="#logs" data-view="logs">
-            <span class="icon" aria-hidden="true">◷</span>
-            Logs
+            <span class="nav-icon" aria-hidden="true">○</span>
+            <span>Logs</span>
+          </a>
+          <a class="nav-item" href="#architect" data-view="architect">
+            <span class="nav-icon" aria-hidden="true">✦</span>
+            <span>AI Architect</span>
           </a>
         </nav>
+
+        <div class="sidebar-cards">
+          <section class="side-card" aria-label="Project selector">
+            <span class="card-label">Project</span>
+            <select id="sidebarProjectSelect"></select>
+          </section>
+          <section class="side-card">
+            <div class="status-line">
+              <span class="status-dot"></span>
+              <strong id="backendStatusText">Checking</strong>
+            </div>
+            <span class="muted">All systems operational</span>
+            <div class="sparkline" aria-hidden="true"></div>
+          </section>
+          <section class="side-card">
+            <span class="card-label">API Base URL</span>
+            <code id="apiBaseUrl">http://127.0.0.1:8765</code>
+          </section>
+        </div>
+
+        <div class="sidebar-footer">
+          <span id="userDisplay">Demo User</span>
+          <button class="ghost-button" id="logoutButton" type="button">Log out</button>
+        </div>
       </aside>
 
       <main class="workspace">
-        <header class="topbar">
-          <div>
-            <h1 id="pageTitle">Endpoints</h1>
-            <p id="pageSubtitle">Configure dynamic mock routes for the demo project.</p>
+        <header class="top-status" aria-label="System status">
+          <div class="top-status-item online" id="backendStatus">
+            <span class="status-dot"></span>
+            <strong>Backend online</strong>
           </div>
-          <div class="topbar-actions">
-            <label class="project-control" for="projectId">
-              <span>Project</span>
-              <input id="projectId" value="demo" autocomplete="off" />
-            </label>
-            <div class="storage-chip" title="This demo uses the in-memory repository. Data resets when the server restarts.">
-              Storage: in-memory
-            </div>
-            <div class="status-chip" id="backendStatus" aria-live="polite">
-              <span class="status-dot"></span>
-              <span id="backendStatusText">Checking</span>
-            </div>
+          <div class="top-status-item">
+            <span>Uptime</span>
+            <strong id="uptimeMetric">0d 00h 00m</strong>
           </div>
+          <div class="top-status-item">
+            <span>Requests</span>
+            <strong id="requestMetric">0</strong>
+            <span class="mini-chart cyan" aria-hidden="true"></span>
+          </div>
+          <div class="top-status-item">
+            <span>Avg Response</span>
+            <strong id="avgResponseMetric">0 ms</strong>
+            <span class="mini-chart cyan" aria-hidden="true"></span>
+          </div>
+          <div class="top-status-item">
+            <span>Errors</span>
+            <strong id="errorMetric">0</strong>
+            <span class="mini-chart red" aria-hidden="true"></span>
+          </div>
+          <label class="top-project">
+            <span>Project</span>
+            <select id="topProjectSelect"></select>
+          </label>
+          <button class="icon-button" id="topRefreshButton" type="button" aria-label="Refresh dashboard">↻</button>
         </header>
 
-        <section class="content-grid view-section active" id="endpoints">
-          <section class="inventory-panel" aria-labelledby="inventoryTitle">
-            <div class="panel-heading">
-              <div>
-                <h2 id="inventoryTitle">Endpoint inventory</h2>
-                <span id="endpointCount">Loading endpoints</span>
+        <section class="view-section active" id="endpoints">
+          <div class="endpoint-dashboard">
+            <section class="panel inventory-panel" aria-labelledby="inventoryTitle">
+              <div class="panel-heading">
+                <div class="panel-title">
+                  <span class="panel-icon" aria-hidden="true">□</span>
+                  <h2 id="inventoryTitle">Endpoint inventory</h2>
+                  <span class="count-pill" id="endpointCount">0</span>
+                </div>
+                <div class="heading-actions">
+                  <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh endpoints">↻</button>
+                  <button class="secondary-button compact-button" id="refreshTableButton" type="button">Refresh</button>
+                </div>
               </div>
-              <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh endpoints">
-                ↻
-              </button>
-            </div>
-            <div class="inventory-toolbar" aria-label="Endpoint filters">
-              <label>
-                Search
-                <input id="searchInput" placeholder="Search endpoints" />
-              </label>
-              <label>
-                Method
-                <select id="methodFilter">
-                  <option value="">All methods</option>
-                  <option>GET</option>
-                  <option>POST</option>
-                  <option>PUT</option>
-                  <option>PATCH</option>
-                  <option>DELETE</option>
-                </select>
-              </label>
-              <label>
-                Status
-                <select id="statusFilter">
-                  <option value="">All status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </label>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Method</th>
-                    <th>Path</th>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Delay</th>
-                  </tr>
-                </thead>
-                <tbody id="endpointRows"></tbody>
-              </table>
-            </div>
-          </section>
+              <div class="inventory-toolbar" aria-label="Endpoint filters">
+                <label class="search-field">
+                  <span class="sr-only">Search</span>
+                  <input id="searchInput" placeholder="Search endpoints..." />
+                </label>
+                <label>
+                  <span class="sr-only">Method</span>
+                  <select id="methodFilter">
+                    <option value="">All methods</option>
+                    <option>GET</option>
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>PATCH</option>
+                    <option>DELETE</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="sr-only">Status</span>
+                  <select id="statusFilter">
+                    <option value="">All status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </label>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Method</th>
+                      <th>Path</th>
+                      <th>Name</th>
+                      <th>Status</th>
+                      <th>Default Status</th>
+                      <th>Delay</th>
+                    </tr>
+                  </thead>
+                  <tbody id="endpointRows"></tbody>
+                </table>
+              </div>
+              <div class="table-footer" id="endpointFooter">Showing 0 endpoints</div>
+            </section>
 
-          <aside class="work-panel" aria-label="Endpoint controls">
-            <section class="form-section" aria-labelledby="createTitle">
-              <div class="section-heading">
-                <h2 id="createTitle">Create endpoint</h2>
-                <span id="createState">Ready</span>
+            <section class="panel create-panel" aria-labelledby="createTitle">
+              <div class="panel-heading simple">
+                <div class="panel-title">
+                  <span class="panel-icon" aria-hidden="true">□</span>
+                  <h2 id="createTitle">Create endpoint</h2>
+                </div>
+                <span class="form-note" id="createState">Ready</span>
               </div>
               <form id="createForm">
                 <div class="field-row">
@@ -127,20 +203,24 @@
                 </div>
                 <label>
                   Path
-                  <input name="path" placeholder="/refunds/{refund_id}" required />
+                  <input name="path" placeholder="/resource/{id}" required />
                 </label>
                 <label>
                   Name
-                  <input name="name" placeholder="Refund lookup" required />
+                  <input name="name" placeholder="Endpoint name" required />
                 </label>
                 <label>
-                  Body template
-                  <textarea name="body_template" rows="5">{"ok":true,"id":"{{refund_id}}","trace_id":"{{uuid}}"}</textarea>
+                  Body template (JSON)
+                  <textarea name="body_template" rows="5">{
+  "ok": true,
+  "id": "{{id}}",
+  "trace_id": "{{uuid}}"
+}</textarea>
                 </label>
                 <div class="field-row">
                   <label>
-                    Delay ms
-                    <input name="delay_ms" type="number" min="0" placeholder="0" />
+                    Delay (ms)
+                    <input name="delay_ms" type="number" min="0" value="0" />
                   </label>
                   <label>
                     Delay mode
@@ -158,10 +238,12 @@
               </form>
             </section>
 
-            <section class="form-section check-section" aria-labelledby="checkTitle">
-              <div class="section-heading">
-                <h2 id="checkTitle">Check endpoint</h2>
-                <span id="checkState">Idle</span>
+            <section class="panel check-panel" aria-labelledby="checkTitle">
+              <div class="panel-heading simple">
+                <div class="panel-title">
+                  <span class="panel-icon" aria-hidden="true">▷</span>
+                  <h2 id="checkTitle">Check endpoint</h2>
+                </div>
               </div>
               <form id="checkForm">
                 <div class="field-row">
@@ -169,7 +251,7 @@
                     Method
                     <select name="method">
                       <option>GET</option>
-                      <option>POST</option>
+                      <option selected>POST</option>
                       <option>PUT</option>
                       <option>PATCH</option>
                       <option>DELETE</option>
@@ -177,38 +259,96 @@
                   </label>
                   <label>
                     Path
-                    <input name="path" value="/payments/pay_123" required />
+                    <input name="path" value="/payouts" required />
                   </label>
                 </div>
-                <button class="secondary-button" type="submit">Check endpoint</button>
-              </form>
-              <div class="result-card" id="checkResult" aria-live="polite">
-                Enter a method and path to verify route resolution.
-              </div>
-              <div class="probe-panel">
+                <div class="result-card success" id="checkResult" aria-live="polite">
+                  <span id="checkState">Ready</span>
+                </div>
                 <label>
                   Probe body
-                  <textarea id="probeBody" rows="4">{"amount":25,"currency":"USD"}</textarea>
+                  <textarea id="probeBody" rows="5">{"amount":25,"currency":"USD"}</textarea>
                 </label>
-                <button class="primary-button" id="probeButton" type="button">Run mock request</button>
+                <button class="secondary-button" type="submit">Check endpoint</button>
+                <button class="ghost-wide-button" id="probeButton" type="button">Run mock request</button>
                 <div class="result-card" id="probeResult" aria-live="polite">
-                  Run the mock request to execute rules, delay, rendering, and logging.
+                  No mock request has run yet.
+                </div>
+              </form>
+            </section>
+
+            <section class="panel architect-panel" id="architectPanel" aria-labelledby="architectTitle">
+              <div class="panel-heading simple">
+                <div class="panel-title">
+                  <span class="panel-icon" aria-hidden="true">✦</span>
+                  <h2 id="architectTitle">Generate from spec</h2>
+                  <span class="subtle-inline">(AI Architect)</span>
+                </div>
+                <span class="form-note" id="architectState">Ready</span>
+              </div>
+              <div class="architect-layout">
+                <form id="architectForm" class="architect-form">
+                  <label>
+                    Describe the endpoint(s) you want to create...
+                    <textarea id="architectSpec" rows="9">Create a POST /cards endpoint that validates card details and returns success for valid test cards and 400 for invalid ones.</textarea>
+                  </label>
+                  <label>
+                    Language model
+                    <select id="modelSelect">
+                      <option>GPT-4o (default)</option>
+                      <option>Local deterministic fallback</option>
+                    </select>
+                  </label>
+                  <div class="architect-actions">
+                    <button class="primary-button" id="architectGenerateButton" type="submit">Generate plan</button>
+                    <button class="success-button" id="architectCommitButton" type="button" disabled>Commit generated endpoints</button>
+                    <button class="secondary-button" id="architectSampleButton" type="button">Sample</button>
+                  </div>
+                  <div class="result-card" id="architectResult" aria-live="polite">
+                    Ready to generate a sandboxed endpoint plan.
+                  </div>
+                </form>
+                <div class="generated-plan">
+                  <div class="plan-column">
+                    <h3 id="architectTaskMeta">Generated plan</h3>
+                    <div id="architectEndpointList" class="mini-list empty">No generated endpoints.</div>
+                    <button class="ghost-wide-button" id="showPlanButton" type="button">Show plan details</button>
+                  </div>
+                  <div class="sandbox-preview">
+                    <h3>Sandbox preview</h3>
+                    <div class="sandbox-metrics">
+                      <div>
+                        <span>Coverage</span>
+                        <strong id="coverageMetric">--</strong>
+                      </div>
+                      <div>
+                        <span>Simulation</span>
+                        <strong id="simulationMetric">--</strong>
+                      </div>
+                      <div>
+                        <span>Iterations</span>
+                        <strong id="iterationMetric">--</strong>
+                      </div>
+                    </div>
+                    <pre id="architectSummary">No sandbox run yet.</pre>
+                    <div id="architectRuleList" class="mini-list empty">No generated rules.</div>
+                    <div id="architectSandboxList" class="mini-list empty">No sandbox cases.</div>
+                  </div>
                 </div>
               </div>
             </section>
-          </aside>
+          </div>
         </section>
 
-        <section class="content-grid view-section" id="rules">
-          <section class="inventory-panel" aria-labelledby="rulesTitle">
+        <section class="view-section" id="rules">
+          <section class="panel inventory-panel" aria-labelledby="rulesTitle">
             <div class="panel-heading">
-              <div>
+              <div class="panel-title">
+                <span class="panel-icon" aria-hidden="true">≡</span>
                 <h2 id="rulesTitle">Rule inventory</h2>
-                <span id="ruleCount">Loading rules</span>
+                <span class="count-pill" id="ruleCount">0</span>
               </div>
-              <button class="icon-button" id="refreshRulesButton" type="button" aria-label="Refresh rules">
-                ↻
-              </button>
+              <button class="icon-button" id="refreshRulesButton" type="button" aria-label="Refresh rules">↻</button>
             </div>
             <div class="table-wrap">
               <table>
@@ -226,75 +366,73 @@
             </div>
           </section>
 
-          <aside class="work-panel" aria-label="Rule controls">
-            <section class="form-section" aria-labelledby="createRuleTitle">
-              <div class="section-heading">
+          <section class="panel rule-create-panel" aria-labelledby="createRuleTitle">
+            <div class="panel-heading simple">
+              <div class="panel-title">
+                <span class="panel-icon" aria-hidden="true">+</span>
                 <h2 id="createRuleTitle">Create rule</h2>
-                <span id="ruleState">Ready</span>
               </div>
-              <form id="ruleForm">
+              <span class="form-note" id="ruleState">Ready</span>
+            </div>
+            <form id="ruleForm" class="rule-form">
+              <label>
+                Endpoint
+                <select name="endpoint_id" id="ruleEndpointSelect" required></select>
+              </label>
+              <div class="field-row four">
                 <label>
-                  Endpoint
-                  <select name="endpoint_id" id="ruleEndpointSelect" required></select>
-                </label>
-                <div class="field-row">
-                  <label>
-                    Source
-                    <select name="condition_type">
-                      <option value="query">query</option>
-                      <option value="headers">headers</option>
-                      <option value="body">body</option>
-                      <option value="path">path</option>
-                      <option value="request">request</option>
-                    </select>
-                  </label>
-                  <label>
-                    Operator
-                    <select name="operator">
-                      <option>equals</option>
-                      <option>not_equals</option>
-                      <option>contains</option>
-                      <option>exists</option>
-                      <option>gt</option>
-                      <option>lt</option>
-                      <option>regex</option>
-                    </select>
-                  </label>
-                </div>
-                <div class="field-row">
-                  <label>
-                    Field
-                    <input name="field" value="status" required />
-                  </label>
-                  <label>
-                    Value
-                    <input name="value" value="failed" />
-                  </label>
-                </div>
-                <label>
-                  Response status
-                  <input name="status_code" type="number" min="100" max="599" value="409" />
+                  Source
+                  <select name="condition_type">
+                    <option value="query">query</option>
+                    <option value="headers">headers</option>
+                    <option value="body">body</option>
+                    <option value="path">path</option>
+                    <option value="request">request</option>
+                  </select>
                 </label>
                 <label>
-                  Response body template
-                  <textarea name="body_template" rows="5">{"matched":true,"payment_id":"{{payment_id}}","reason":"{{query.reason}}"}</textarea>
+                  Operator
+                  <select name="operator">
+                    <option>equals</option>
+                    <option>not_equals</option>
+                    <option>contains</option>
+                    <option>exists</option>
+                    <option>gt</option>
+                    <option>lt</option>
+                    <option>regex</option>
+                  </select>
                 </label>
-                <button class="primary-button" type="submit">Create rule</button>
-              </form>
-            </section>
-          </aside>
+                <label>
+                  Field
+                  <input name="field" value="status" required />
+                </label>
+                <label>
+                  Value
+                  <input name="value" value="failed" />
+                </label>
+              </div>
+              <label>
+                Response status
+                <input name="status_code" type="number" min="100" max="599" value="409" />
+              </label>
+              <label>
+                Response body template
+                <textarea name="body_template" rows="5">{"matched":true,"payment_id":"{{payment_id}}","reason":"{{query.reason}}"}</textarea>
+              </label>
+              <button class="primary-button" type="submit">Create rule</button>
+            </form>
+          </section>
         </section>
 
-        <section class="content-grid view-section single-column" id="logs">
-          <section class="inventory-panel" aria-labelledby="logsTitle">
+        <section class="view-section" id="logs">
+          <section class="panel inventory-panel" aria-labelledby="logsTitle">
             <div class="panel-heading">
-              <div>
+              <div class="panel-title">
+                <span class="panel-icon" aria-hidden="true">○</span>
                 <h2 id="logsTitle">Request logs</h2>
-                <span id="logCount">Loading logs</span>
+                <span class="count-pill" id="logCount">0</span>
               </div>
-              <button class="icon-button" id="refreshLogsButton" type="button" aria-label="Refresh logs">
-                ↻
-              </button>
+              <button class="icon-button" id="refreshLogsButton" type="button" aria-label="Refresh logs">↻</button>
             </div>
             <div class="table-wrap">
               <table>

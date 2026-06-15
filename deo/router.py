@@ -14,6 +14,8 @@ from deo.models import (
     EndpointCheckResult,
     EndpointCreateRequest,
     IncomingRequestContext,
+    LoginRequest,
+    LoginResult,
     RuleCreateRequest,
 )
 from deo.orchestrator import DEOOrchestrator
@@ -103,6 +105,31 @@ def build_deo_router(endpoint_repository: EndpointRepository) -> APIRouter:
             _read_static_asset(asset_name),
             media_type=media_types[asset_name],
             headers={"Cache-Control": "no-store"},
+        )
+
+    @api_router.get("/api/projects")
+    async def list_projects() -> dict[str, Any]:
+        projects = await endpoint_repository.get_project_overviews()
+        return {"projects": [project.model_dump() for project in projects]}
+
+    @api_router.post("/api/auth/login")
+    async def login(login_request: LoginRequest) -> LoginResult:
+        projects = await endpoint_repository.get_project_overviews()
+        if not projects:
+            raise HTTPException(status_code=503, detail="No projects are configured.")
+        project_ids = {project.id for project in projects}
+        default_project_id = (
+            login_request.project_id
+            if login_request.project_id in project_ids
+            else projects[0].id
+        )
+        display_name = login_request.email.split("@", 1)[0].replace(".", " ").title()
+        return LoginResult(
+            user_id=login_request.email,
+            display_name=display_name,
+            token="dev-admin",
+            projects=projects,
+            default_project_id=default_project_id,
         )
 
     @api_router.get("/api/projects/{project_id}/endpoints")
@@ -232,7 +259,23 @@ def create_app(
     )
     if endpoint_repository is None:
         app.include_router(router)
+        _include_architect_router(app, repository)
         return app
 
     app.include_router(build_deo_router(endpoint_repository))
+    _include_architect_router(app, endpoint_repository)
     return app
+
+
+def _include_architect_router(
+    app: FastAPI,
+    endpoint_repository: EndpointRepository,
+) -> None:
+    """Mount the AI Architect routes against the same endpoint repository."""
+
+    from architect.orchestrator import ArchitectOrchestrator
+    from architect.router import build_architect_router
+
+    app.include_router(
+        build_architect_router(ArchitectOrchestrator(endpoint_repository))
+    )

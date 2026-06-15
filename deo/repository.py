@@ -18,6 +18,7 @@ from deo.models import (
     EndpointDelay,
     EndpointOverview,
     EndpointRule,
+    ProjectOverview,
     RequestLogEntry,
     RequestLogOverview,
     ResponseDefinition,
@@ -30,6 +31,10 @@ from deo.models import (
 
 class EndpointRepository(ABC):
     """Abstract access layer for all DEO configuration and request logs."""
+
+    @abstractmethod
+    async def get_project_overviews(self) -> list[ProjectOverview]:
+        """Return projects available to the dashboard user."""
 
     @abstractmethod
     async def get_endpoints(self, project_id: str) -> list[Endpoint]:
@@ -105,6 +110,23 @@ class InMemoryEndpointRepository(EndpointRepository):
     """In-memory repository seeded with representative payment endpoints."""
 
     def __init__(self) -> None:
+        self.projects: list[ProjectOverview] = [
+            ProjectOverview(
+                id="demo",
+                name="Demo",
+                description="Primary payment mocks",
+            ),
+            ProjectOverview(
+                id="checkout-lab",
+                name="Checkout Lab",
+                description="Card and checkout scenarios",
+            ),
+            ProjectOverview(
+                id="refunds-qa",
+                name="Refunds QA",
+                description="Refund validation sandbox",
+            ),
+        ]
         self.endpoints: list[Endpoint] = [
             Endpoint(
                 id="endpoint_payment_lookup",
@@ -130,6 +152,22 @@ class InMemoryEndpointRepository(EndpointRepository):
                 method="GET",
                 is_active=True,
             ),
+            Endpoint(
+                id="endpoint_checkout_card_create",
+                project_id="checkout-lab",
+                name="Create card",
+                path="/cards",
+                method="POST",
+                is_active=True,
+            ),
+            Endpoint(
+                id="endpoint_refund_status",
+                project_id="refunds-qa",
+                name="Refund status",
+                path="/refunds/{refund_id}/status",
+                method="GET",
+                is_active=True,
+            ),
         ]
         self.rules: list[EndpointRule] = [
             EndpointRule(
@@ -146,7 +184,7 @@ class InMemoryEndpointRepository(EndpointRepository):
             EndpointDelay(
                 id="delay_payout_create",
                 endpoint_id="endpoint_payout_create",
-                delay_ms=20,
+                delay_ms=650,
                 mode="fixed",
             )
         ]
@@ -186,6 +224,26 @@ class InMemoryEndpointRepository(EndpointRepository):
                 endpoint_id="endpoint_health",
                 status_code=200,
                 body_template='{"ok":true,"now":"{{now}}"}',
+                is_default=True,
+            ),
+            ResponseDefinition(
+                id="response_checkout_card_create",
+                endpoint_id="endpoint_checkout_card_create",
+                status_code=201,
+                body_template=(
+                    '{"card_id":"{{uuid}}","status":"valid",'
+                    '"brand":"{{body.brand}}"}'
+                ),
+                is_default=True,
+            ),
+            ResponseDefinition(
+                id="response_refund_status",
+                endpoint_id="endpoint_refund_status",
+                status_code=200,
+                body_template=(
+                    '{"refund_id":"{{refund_id}}","status":"processing",'
+                    '"trace_id":"{{uuid}}"}'
+                ),
                 is_default=True,
             ),
         ]
@@ -232,8 +290,23 @@ class InMemoryEndpointRepository(EndpointRepository):
                 key="content-type",
                 value="application/json",
             ),
+            ResponseHeader(
+                id="header_checkout_card_create_content_type",
+                response_id="response_checkout_card_create",
+                key="content-type",
+                value="application/json",
+            ),
+            ResponseHeader(
+                id="header_refund_status_content_type",
+                response_id="response_refund_status",
+                key="content-type",
+                value="application/json",
+            ),
         ]
         self.request_logs: list[RequestLogEntry] = []
+
+    async def get_project_overviews(self) -> list[ProjectOverview]:
+        return list(self.projects)
 
     async def get_endpoints(self, project_id: str) -> list[Endpoint]:
         return [endpoint for endpoint in self.endpoints if endpoint.project_id == project_id]
@@ -440,7 +513,11 @@ class InMemoryEndpointRepository(EndpointRepository):
         logs = [
             log_entry
             for log_entry in self.request_logs
-            if log_entry.endpoint_id is None or log_entry.endpoint_id in endpoint_by_id
+            if log_entry.project_id == project_id
+            or (
+                log_entry.project_id is None
+                and log_entry.endpoint_id in endpoint_by_id
+            )
         ]
         recent_logs = sorted(logs, key=lambda log_entry: log_entry.created_at, reverse=True)
         return [
