@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MockMesh DEO Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='7'%20fill='%230795ac'/%3E%3Ctext%20x='16'%20y='23'%20font-family='Arial,sans-serif'%20font-size='20'%20font-weight='700'%20fill='%23ffffff'%20text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E" />
     <link rel="stylesheet" href="./dashboard.css" />
   </head>
   <body>
@@ -30,6 +31,14 @@
         </label>
         <button class="primary-button" type="submit">Continue</button>
         <div class="form-note" id="loginState" aria-live="polite">Ready</div>
+        <div class="login-connection is-hidden" id="loginConnection">
+          <label>
+            API URL
+            <input id="apiBaseInput" type="url" inputmode="url" placeholder="http://127.0.0.1:8000" autocomplete="off" spellcheck="false" />
+          </label>
+          <p class="connection-hint">Point the dashboard at the address where the MockMesh API is running, then reconnect.</p>
+          <button class="secondary-button" type="button" id="retryProjectsButton">Reconnect</button>
+        </div>
       </form>
     </section>
 
@@ -130,7 +139,6 @@
                 </div>
                 <div class="heading-actions">
                   <button class="icon-button" id="refreshButton" type="button" aria-label="Refresh endpoints">↻</button>
-                  <button class="secondary-button compact-button" id="refreshTableButton" type="button">Refresh</button>
                 </div>
               </div>
               <div class="inventory-toolbar" aria-label="Endpoint filters">
@@ -245,99 +253,107 @@
                   <h2 id="checkTitle">Check endpoint</h2>
                 </div>
               </div>
-              <form id="checkForm">
-                <div class="field-row">
-                  <label>
-                    Method
-                    <select name="method">
-                      <option>GET</option>
-                      <option selected>POST</option>
-                      <option>PUT</option>
-                      <option>PATCH</option>
-                      <option>DELETE</option>
-                    </select>
-                  </label>
-                  <label>
-                    Path
-                    <input name="path" value="/payouts" required />
-                  </label>
+              <form id="checkForm" class="check-grid">
+                <div class="check-col">
+                  <div class="field-row">
+                    <label>
+                      Method
+                      <select name="method">
+                        <option>GET</option>
+                        <option selected>POST</option>
+                        <option>PUT</option>
+                        <option>PATCH</option>
+                        <option>DELETE</option>
+                      </select>
+                    </label>
+                    <label>
+                      Path
+                      <input name="path" value="/payouts" required />
+                    </label>
+                  </div>
+                  <button class="secondary-button" type="submit">Check endpoint</button>
+                  <div class="result-card check-output" id="checkResult" aria-live="polite">
+                    <span id="checkState">Ready</span>
+                  </div>
                 </div>
-                <div class="result-card success" id="checkResult" aria-live="polite">
-                  <span id="checkState">Ready</span>
-                </div>
-                <label>
-                  Probe body
-                  <textarea id="probeBody" rows="5">{"amount":25,"currency":"USD"}</textarea>
-                </label>
-                <button class="secondary-button" type="submit">Check endpoint</button>
-                <button class="ghost-wide-button" id="probeButton" type="button">Run mock request</button>
-                <div class="result-card" id="probeResult" aria-live="polite">
-                  No mock request has run yet.
+                <div class="check-col">
+                  <div class="probe-divider"><span>Run a real mock request</span></div>
+                  <label>
+                    Probe body
+                    <textarea id="probeBody" rows="3">{"amount":25,"currency":"USD"}</textarea>
+                  </label>
+                  <button class="ghost-wide-button" id="probeButton" type="button">Run mock request</button>
+                  <div class="result-card" id="probeResult" aria-live="polite">
+                    No mock request has run yet.
+                  </div>
                 </div>
               </form>
             </section>
 
-            <section class="panel architect-panel" id="architectPanel" aria-labelledby="architectTitle">
-              <div class="panel-heading simple">
-                <div class="panel-title">
-                  <span class="panel-icon" aria-hidden="true">✦</span>
-                  <h2 id="architectTitle">Generate from spec</h2>
-                  <span class="subtle-inline">(AI Architect)</span>
-                </div>
-                <span class="form-note" id="architectState">Ready</span>
-              </div>
-              <div class="architect-layout">
-                <form id="architectForm" class="architect-form">
-                  <label>
-                    Describe the endpoint(s) you want to create...
-                    <textarea id="architectSpec" rows="9">Create a POST /cards endpoint that validates card details and returns success for valid test cards and 400 for invalid ones.</textarea>
-                  </label>
-                  <label>
-                    Language model
-                    <select id="modelSelect">
-                      <option>GPT-4o (default)</option>
-                      <option>Local deterministic fallback</option>
-                    </select>
-                  </label>
-                  <div class="architect-actions">
-                    <button class="primary-button" id="architectGenerateButton" type="submit">Generate plan</button>
-                    <button class="success-button" id="architectCommitButton" type="button" disabled>Commit generated endpoints</button>
-                    <button class="secondary-button" id="architectSampleButton" type="button">Sample</button>
-                  </div>
-                  <div class="result-card" id="architectResult" aria-live="polite">
-                    Ready to generate a sandboxed endpoint plan.
-                  </div>
-                </form>
-                <div class="generated-plan">
-                  <div class="plan-column">
-                    <h3 id="architectTaskMeta">Generated plan</h3>
-                    <div id="architectEndpointList" class="mini-list empty">No generated endpoints.</div>
-                    <button class="ghost-wide-button" id="showPlanButton" type="button">Show plan details</button>
-                  </div>
-                  <div class="sandbox-preview">
-                    <h3>Sandbox preview</h3>
-                    <div class="sandbox-metrics">
-                      <div>
-                        <span>Coverage</span>
-                        <strong id="coverageMetric">--</strong>
-                      </div>
-                      <div>
-                        <span>Simulation</span>
-                        <strong id="simulationMetric">--</strong>
-                      </div>
-                      <div>
-                        <span>Iterations</span>
-                        <strong id="iterationMetric">--</strong>
-                      </div>
-                    </div>
-                    <pre id="architectSummary">No sandbox run yet.</pre>
-                    <div id="architectRuleList" class="mini-list empty">No generated rules.</div>
-                    <div id="architectSandboxList" class="mini-list empty">No sandbox cases.</div>
-                  </div>
-                </div>
-              </div>
-            </section>
           </div>
+        </section>
+
+        <section class="view-section" id="architect">
+          <section class="panel architect-panel" id="architectPanel" aria-labelledby="architectTitle">
+            <div class="panel-heading simple">
+              <div class="panel-title">
+                <span class="panel-icon" aria-hidden="true">✦</span>
+                <h2 id="architectTitle">Generate from spec</h2>
+                <span class="subtle-inline">(AI Architect)</span>
+              </div>
+              <span class="form-note" id="architectState">Ready</span>
+            </div>
+            <div class="architect-layout">
+              <form id="architectForm" class="architect-form">
+                <label>
+                  Describe the endpoint(s) you want to create...
+                  <textarea id="architectSpec" rows="6">Create a POST /cards endpoint that validates card details and returns success for valid test cards and 400 for invalid ones.</textarea>
+                </label>
+                <label>
+                  Language model
+                  <select id="modelSelect">
+                    <option>GPT-4o (default)</option>
+                    <option>Local deterministic fallback</option>
+                  </select>
+                </label>
+                <div class="architect-actions">
+                  <button class="primary-button" id="architectGenerateButton" type="submit">Generate plan</button>
+                  <button class="success-button" id="architectCommitButton" type="button" disabled>Commit generated endpoints</button>
+                  <button class="secondary-button" id="architectSampleButton" type="button">Sample</button>
+                </div>
+                <div class="result-card" id="architectResult" aria-live="polite">
+                  Ready to generate a sandboxed endpoint plan.
+                </div>
+              </form>
+              <div class="generated-plan">
+                <div class="plan-column">
+                  <h3 id="architectTaskMeta">Generated plan</h3>
+                  <div id="architectEndpointList" class="mini-list empty">No generated endpoints.</div>
+                  <button class="ghost-wide-button" id="showPlanButton" type="button">Show plan details</button>
+                </div>
+                <div class="sandbox-preview">
+                  <h3>Sandbox preview</h3>
+                  <div class="sandbox-metrics">
+                    <div>
+                      <span>Coverage</span>
+                      <strong id="coverageMetric">--</strong>
+                    </div>
+                    <div>
+                      <span>Simulation</span>
+                      <strong id="simulationMetric">--</strong>
+                    </div>
+                    <div>
+                      <span>Iterations</span>
+                      <strong id="iterationMetric">--</strong>
+                    </div>
+                  </div>
+                  <pre id="architectSummary">No sandbox run yet.</pre>
+                  <div id="architectRuleList" class="mini-list empty">No generated rules.</div>
+                  <div id="architectSandboxList" class="mini-list empty">No sandbox cases.</div>
+                </div>
+              </div>
+            </div>
+          </section>
         </section>
 
         <section class="view-section" id="rules">

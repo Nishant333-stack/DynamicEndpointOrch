@@ -22,7 +22,6 @@ const endpointRows = document.querySelector("#endpointRows");
 const endpointCount = document.querySelector("#endpointCount");
 const endpointFooter = document.querySelector("#endpointFooter");
 const refreshButton = document.querySelector("#refreshButton");
-const refreshTableButton = document.querySelector("#refreshTableButton");
 const searchInput = document.querySelector("#searchInput");
 const methodFilter = document.querySelector("#methodFilter");
 const statusFilter = document.querySelector("#statusFilter");
@@ -61,8 +60,37 @@ const simulationMetric = document.querySelector("#simulationMetric");
 const iterationMetric = document.querySelector("#iterationMetric");
 const showPlanButton = document.querySelector("#showPlanButton");
 
-const apiOrigin = window.location.protocol === "file:" ? "http://127.0.0.1:8765" : "";
+const loginConnection = document.querySelector("#loginConnection");
+const apiBaseInput = document.querySelector("#apiBaseInput");
+const retryProjectsButton = document.querySelector("#retryProjectsButton");
+
 const sessionStorageKey = "mockmeshDashboardSession";
+const apiBaseStorageKey = "mockmeshApiBase";
+
+// When the dashboard is served by the backend (http/https) the API lives at the
+// same origin, so we use a relative base (""). When it is opened directly as a
+// file:// document there is no origin to inherit, so we fall back to the
+// documented local dev port. A saved override (set on the login screen) always
+// wins, so the dashboard can also point at a remote/deployed API.
+function defaultApiOrigin() {
+  return window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+}
+
+function resolveApiOrigin() {
+  const saved = (localStorage.getItem(apiBaseStorageKey) || "").trim();
+  return saved ? saved.replace(/\/+$/, "") : defaultApiOrigin();
+}
+
+let apiOrigin = resolveApiOrigin();
+
+function updateApiBaseDisplay() {
+  const shown = apiOrigin || window.location.origin;
+  apiBaseUrl.textContent = shown;
+  if (apiBaseInput && document.activeElement !== apiBaseInput) {
+    apiBaseInput.value = (localStorage.getItem(apiBaseStorageKey) || "").trim() || shown;
+  }
+}
+
 const sampleArchitectSpec =
   "Create a POST /cards endpoint that validates card details and returns success for valid test cards and 400 for invalid ones.";
 
@@ -79,8 +107,9 @@ let architectPollTimer = null;
 let activeArchitectTaskId = null;
 let lastArchitectTask = null;
 let sessionStartedAt = Date.now();
+let serverStartClientMs = null;
 
-apiBaseUrl.textContent = apiOrigin || window.location.origin;
+updateApiBaseDisplay();
 
 function apiUrl(path) {
   return `${apiOrigin}${path}`;
@@ -143,11 +172,33 @@ async function errorMessage(response, fallback) {
 }
 
 function formatUptime() {
-  const elapsedMs = Date.now() - sessionStartedAt;
+  if (serverStartClientMs === null) {
+    uptimeMetric.textContent = "—";
+    return;
+  }
+  const elapsedMs = Math.max(0, Date.now() - serverStartClientMs);
   const minutes = Math.floor(elapsedMs / 60000) % 60;
   const hours = Math.floor(elapsedMs / 3600000) % 24;
   const days = Math.floor(elapsedMs / 86400000);
   uptimeMetric.textContent = `${days}d ${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+// Uptime reflects how long the backend process has been running. We fetch the
+// server's reported uptime once, derive the server start time on the client
+// clock, then tick locally; refreshDashboard re-syncs to correct any drift.
+async function syncServerUptime() {
+  try {
+    const response = await fetch(apiUrl("/api/status"));
+    if (response.ok) {
+      const status = await response.json();
+      if (Number.isFinite(status.uptime_seconds)) {
+        serverStartClientMs = Date.now() - status.uptime_seconds * 1000;
+      }
+    }
+  } catch {
+    // Backend unreachable: leave uptime showing its placeholder.
+  }
+  formatUptime();
 }
 
 function updateMetrics() {
@@ -221,14 +272,22 @@ function applySession(session) {
 async function login(event) {
   event.preventDefault();
   loginState.textContent = "Signing in";
-  const response = await fetch(apiUrl("/api/auth/login"), {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify({
-      email: loginEmail.value.trim(),
-      project_id: loginProjectSelect.value || currentProjectId,
-    }),
-  });
+  let response;
+  try {
+    response = await fetch(apiUrl("/api/auth/login"), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        email: loginEmail.value.trim(),
+        project_id: loginProjectSelect.value || currentProjectId,
+      }),
+    });
+  } catch {
+    loginState.textContent = `Could not reach the API at ${apiOrigin || window.location.origin}. Check the API URL below and reconnect.`;
+    loginConnection.classList.remove("is-hidden");
+    setBackendStatus(false);
+    return;
+  }
 
   if (!response.ok) {
     loginState.textContent = await errorMessage(response, "Login failed.");
@@ -290,12 +349,11 @@ function stopLogAutoRefresh() {
 
 function switchView(viewName) {
   activeView = viewName;
-  const sectionName = viewName === "architect" ? "endpoints" : viewName;
   navItems.forEach((item) => {
     item.classList.toggle("active", item.dataset.view === viewName);
   });
   viewSections.forEach((section) => {
-    section.classList.toggle("active", section.id === sectionName);
+    section.classList.toggle("active", section.id === viewName);
   });
 
   if (viewName === "rules") {
@@ -307,15 +365,11 @@ function switchView(viewName) {
   } else {
     stopLogAutoRefresh();
   }
-  if (viewName === "architect") {
-    window.setTimeout(() => {
-      architectPanel.scrollIntoView({behavior: "smooth", block: "start"});
-    }, 50);
-  }
 }
 
 async function refreshDashboard() {
   setBackendStatus(true);
+  syncServerUptime();
   await Promise.all([
     loadEndpoints(),
     loadRules(),
@@ -325,7 +379,6 @@ async function refreshDashboard() {
 
 async function loadEndpoints() {
   setButtonLoading(refreshButton, true);
-  setButtonLoading(refreshTableButton, true);
   try {
     const response = await fetch(endpointUrl("/endpoints"), {
       headers: authHeaders(),
@@ -353,7 +406,6 @@ async function loadEndpoints() {
     endpointFooter.textContent = "API unavailable";
   } finally {
     setButtonLoading(refreshButton, false);
-    setButtonLoading(refreshTableButton, false);
   }
 }
 
@@ -617,42 +669,92 @@ async function createRule(event) {
   await loadRules();
 }
 
+function checkErrorCard(title, hintHtml) {
+  checkResult.className = "result-card check-output is-error";
+  checkResult.innerHTML = `
+    <div class="co-head co-head-error"><span class="co-icon">✕</span> ${escapeHtml(title)}</div>
+    <p class="co-hint">${hintHtml}</p>
+  `;
+}
+
+function renderCheckResult(result, payload) {
+  const requested = `<span class="${methodClass(payload.method)}">${escapeHtml(payload.method)}</span> <code>${escapeHtml(payload.path)}</code>`;
+
+  if (!result.exists) {
+    const hint = result.exact_signature_exists
+      ? "An endpoint with this exact method and path exists but is <strong>inactive</strong>. Activate it to make it resolve."
+      : `No active endpoint matches this path in <strong>${escapeHtml(currentProjectId)}</strong>. Create one to handle it.`;
+    checkResult.className = "result-card check-output is-error";
+    checkResult.innerHTML = `
+      <div class="co-head co-head-error"><span class="co-icon">✕</span> No match</div>
+      <dl>
+        <dt>Requested</dt><dd>${requested}</dd>
+      </dl>
+      <p class="co-hint">${hint}</p>
+    `;
+    return;
+  }
+
+  const endpoint = result.endpoint;
+  const params = Object.entries(result.path_params || {});
+  const paramHtml = params.length
+    ? `<div class="co-chips">${params
+        .map(([key, value]) => `<span class="co-chip">${escapeHtml(key)} = ${escapeHtml(value)}</span>`)
+        .join("")}</div>`
+    : '<span class="muted">None</span>';
+  const delay = result.delay_ms
+    ? `${escapeHtml(result.delay_ms)} ms ${escapeHtml(result.delay_mode)}`
+    : "No delay";
+  const matchType = result.exact_signature_exists ? "Exact signature" : "Pattern match";
+  const stateHtml = endpoint.is_active
+    ? '<span class="active-state">Active</span>'
+    : '<span class="inactive-state">Inactive</span>';
+
+  checkResult.className = "result-card check-output is-success";
+  checkResult.innerHTML = `
+    <div class="co-head co-head-success"><span class="co-icon">✓</span> Match found</div>
+    <dl>
+      <dt>Endpoint</dt><dd><strong>${escapeHtml(endpoint.name)}</strong></dd>
+      <dt>Resolves</dt><dd><span class="${methodClass(endpoint.method)}">${escapeHtml(endpoint.method)}</span> <code>${escapeHtml(endpoint.path)}</code></dd>
+      <dt>Requested</dt><dd>${requested}</dd>
+      <dt>Path params</dt><dd>${paramHtml}</dd>
+      <dt>State</dt><dd>${stateHtml}</dd>
+      <dt>Delay</dt><dd>${escapeHtml(delay)}</dd>
+      <dt>Match</dt><dd>${escapeHtml(matchType)}</dd>
+    </dl>
+    <p class="co-hint">Use <strong>Run mock request</strong> below to see the actual response body.</p>
+  `;
+}
+
 async function checkEndpoint(event) {
   event.preventDefault();
-  checkState.textContent = "Checking";
-  checkResult.className = "result-card";
+  checkResult.className = "result-card check-output";
+  checkResult.textContent = "Checking…";
   const formData = new FormData(checkForm);
   const payload = {
     method: formData.get("method"),
     path: formData.get("path"),
   };
-  const response = await fetch(endpointUrl("/endpoints/check"), {
-    method: "POST",
-    headers: authHeaders({"content-type": "application/json"}),
-    body: JSON.stringify(payload),
-  });
+
+  let response;
+  try {
+    response = await fetch(endpointUrl("/endpoints/check"), {
+      method: "POST",
+      headers: authHeaders({"content-type": "application/json"}),
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    checkErrorCard("Request failed", `Could not reach the API at ${escapeHtml(apiOrigin || window.location.origin)}.`);
+    return;
+  }
 
   if (!response.ok) {
-    checkState.textContent = "Error";
-    checkResult.className = "result-card error";
-    checkResult.textContent = "Unable to check this endpoint.";
+    checkErrorCard("Error", escapeHtml(await errorMessage(response, "Unable to check this endpoint.")));
     return;
   }
 
   const result = await response.json();
-  if (!result.exists) {
-    checkState.textContent = "No match";
-    checkResult.className = "result-card error";
-    checkResult.textContent = `${payload.method} ${payload.path} does not match an active endpoint in ${currentProjectId}.`;
-    return;
-  }
-
-  checkState.textContent = "Matched";
-  checkResult.className = "result-card success";
-  const delay = result.delay_ms
-    ? `${result.delay_ms} ms ${result.delay_mode}`
-    : "No delay";
-  checkResult.textContent = `${payload.method} ${payload.path} resolves to ${result.endpoint.name}. ${delay}.`;
+  renderCheckResult(result, payload);
 }
 
 async function runMockProbe() {
@@ -915,16 +1017,47 @@ function showPlanDetails() {
   architectResult.textContent = JSON.stringify(lastArchitectTask.result.generated_config, null, 2);
 }
 
+async function reconnectProjects() {
+  const value = apiBaseInput.value.trim().replace(/\/+$/, "");
+  if (value && value !== window.location.origin) {
+    localStorage.setItem(apiBaseStorageKey, value);
+  } else {
+    localStorage.removeItem(apiBaseStorageKey);
+  }
+  apiOrigin = resolveApiOrigin();
+  updateApiBaseDisplay();
+  loginState.textContent = "Connecting";
+  setButtonLoading(retryProjectsButton, true);
+  try {
+    await loadProjects();
+    loginConnection.classList.add("is-hidden");
+    loginState.textContent = "Ready";
+    setBackendStatus(true);
+  } catch (error) {
+    const reachable = apiOrigin || window.location.origin;
+    loginState.textContent = `${error.message} Still cannot reach the API at ${reachable}.`;
+    loginConnection.classList.remove("is-hidden");
+    setBackendStatus(false);
+  } finally {
+    setButtonLoading(retryProjectsButton, false);
+  }
+}
+
 async function initialize() {
   formatUptime();
   window.setInterval(formatUptime, 15000);
   try {
     await loadProjects();
   } catch (error) {
-    loginState.textContent = error.message;
+    const reachable = apiOrigin || window.location.origin;
+    loginState.textContent = `${error.message} Could not reach the API at ${reachable}.`;
+    loginConnection.classList.remove("is-hidden");
+    updateApiBaseDisplay();
     setBackendStatus(false);
     return;
   }
+
+  syncServerUptime();
 
   const savedSession = localStorage.getItem(sessionStorageKey);
   if (savedSession) {
@@ -943,6 +1076,7 @@ async function initialize() {
 
 loginForm.addEventListener("submit", login);
 logoutButton.addEventListener("click", logout);
+retryProjectsButton.addEventListener("click", reconnectProjects);
 sidebarProjectSelect.addEventListener("change", () => selectProject(sidebarProjectSelect.value));
 topProjectSelect.addEventListener("change", () => selectProject(topProjectSelect.value));
 loginProjectSelect.addEventListener("change", () => {
@@ -954,7 +1088,6 @@ ruleForm.addEventListener("submit", createRule);
 checkForm.addEventListener("submit", checkEndpoint);
 probeButton.addEventListener("click", runMockProbe);
 refreshButton.addEventListener("click", loadEndpoints);
-refreshTableButton.addEventListener("click", loadEndpoints);
 topRefreshButton.addEventListener("click", refreshDashboard);
 refreshRulesButton.addEventListener("click", loadRules);
 refreshLogsButton.addEventListener("click", () => loadLogs());

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,12 @@ from deo.route_matcher import RouteMatcher
 STATIC_DIR = Path(__file__).with_name("static")
 repository: EndpointRepository = InMemoryEndpointRepository()
 orchestrator = DEOOrchestrator(repository)
+
+# Captured once when the process imports this module (≈ server start). Used by
+# the /api/status endpoint so the dashboard can show real server uptime rather
+# than browser-session time. Reset naturally on restart/reload.
+_SERVER_STARTED_AT = datetime.now(timezone.utc)
+_SERVER_START_MONOTONIC = time.monotonic()
 
 
 async def build_request_context(request: Request, full_path: str) -> IncomingRequestContext:
@@ -106,6 +114,15 @@ def build_deo_router(endpoint_repository: EndpointRepository) -> APIRouter:
             media_type=media_types[asset_name],
             headers={"Cache-Control": "no-store"},
         )
+
+    @api_router.get("/api/status")
+    async def server_status() -> dict[str, Any]:
+        uptime_seconds = max(0.0, time.monotonic() - _SERVER_START_MONOTONIC)
+        return {
+            "started_at": _SERVER_STARTED_AT.isoformat(),
+            "uptime_seconds": uptime_seconds,
+            "server_time": datetime.now(timezone.utc).isoformat(),
+        }
 
     @api_router.get("/api/projects")
     async def list_projects() -> dict[str, Any]:
